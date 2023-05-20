@@ -1,105 +1,161 @@
 'use client'
-import React, { useState } from 'react';
-import Head from 'next/head';
-import { motion } from 'framer-motion';
+import { useState } from 'react';
+import { motion, Variants } from 'framer-motion';
+import React from 'react';
 
-const LoginPage: React.FC = () => {
+const variants: Variants = {
+  initial: { opacity: 0, y: 20 },
+  animate: { opacity: 1, y: 0 },
+  exit: { opacity: 0, y: -20 },
+};
+
+export default function Home() {
   const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+  const [code, setCode] = useState(['', '', '', '', '', '']);
+  const [showCodeInput, setShowCodeInput] = useState(false);
+
+  const codeInputRefs = Array.from({ length: 6 }, () => React.createRef<HTMLInputElement>());
 
   const handleEmailChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     setEmail(event.target.value);
   };
 
-  const handlePasswordChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    setPassword(event.target.value);
+  const handleCodeChange = (index: number, event: React.ChangeEvent<HTMLInputElement>) => {
+    const value = event.target.value;
+    
+    if (value.length <= 1) {
+      const newCode = [...code];
+      newCode[index] = value;
+      setCode(newCode);
+  
+      if (value.length === 1 && index < 5) {
+        codeInputRefs[index + 1].current?.focus();
+      } else if (value.length === 0 && index > 0) {
+        codeInputRefs[index - 1].current?.focus();
+      }
+    }
+  };
+  
+  const handleSubmitEmail = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    console.log('Email:', email);
+    const bodyC = JSON.stringify({email: email})
+    setShowCodeInput(true);
+    const response = await fetch("/api/login", {
+      method: "POST", // *GET, POST, PUT, DELETE, etc.
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: bodyC, // body data type must match "Content-Type" header
+    });
   };
 
-  const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
+  const handleSubmitCode = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    // Perform login logic here
-    console.log("test")
+    console.log('Code:', code);
+  };
+
+  const handleGoBack = () => {
+    setShowCodeInput(false);
   };
 
   return (
-    <div className="min-h-screen bg-gray-100 text-black flex flex-col items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
-      <Head>
-        <title>Schul-3D-Druck - Login</title>
-        <link rel="icon" href="/favicon.ico" />
-      </Head>
-
-      <div className="w-full max-w-md mx-auto px-4">
-        <header className="flex items-center justify-center py-6">
-          <div>
-            <img className="h-8 w-auto sm:h-10" src="/school-logo.svg" alt="School Logo" />
-          </div>
-        </header>
-
-        <main className="mt-8">
-          <motion.form
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5 }}
-            onSubmit={handleSubmit}
-            className="bg-white shadow-md rouxnded-l px-8 pt-6 pb-8 mb-4"
+    <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
+      <div className="max-w-md w-full bg-white rounded-lg shadow-md overflow-hidden">
+        <div className="p-6">
+          <motion.div
+            variants={variants}
+            initial="initial"
+            animate="animate"
+            exit="exit"
+            transition={{ duration: 0.3 }}
           >
-            <div className="mb-4">
-              <label
-                htmlFor="email"
-                className="block text-gray-700 text-sm font-bold mb-2"
-              >
-                E-Mail
-              </label>
-              <input
-                id="email"
-                type="email"
-                className="appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
-                value={email}
-                onChange={handleEmailChange}
-                placeholder="E-Mail"
-                required
-              />
-            </div>
-
-            <div className="mb-6">
-              <label
-                htmlFor="password"
-                className="block text-gray-700 text-sm font-bold mb-2"
-              >
-                Passwort
-              </label>
-              <input
-                id="password"
-                type="password"
-                className="appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
-                value={password}
-                onChange={handlePasswordChange}
-                placeholder="Passwort"
-                required
-              />
-            </div>
-
-            <div className="flex items-center justify-center">
-              <motion.button
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                transition={{ duration: 0.5 }}
-                type="submit"
-                className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline"
-              >
-                Einloggen
-              </motion.button>
-            </div>
-
-            <div>
-              Bitte beachte das 
-            </div>
-
-          </motion.form>
-        </main>
+            {!showCodeInput ? (
+              <>
+                <h2 className="text-3xl font-extrabold text-gray-900 mb-8">
+                  Schritt 1: Gib deine E-Mail ein
+                </h2>
+                <form onSubmit={handleSubmitEmail} className="space-y-6">
+                  <input
+                    type="email"
+                    required
+                    value={email}
+                    onChange={handleEmailChange}
+                    disabled={showCodeInput}
+                    className="appearance-none rounded-md relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 focus:z-10 sm:text-sm"
+                    placeholder="vorname.nachname@igs-buchholz.de"
+                  />
+                  <div className="flex items-center justify-between">
+                    <button
+                      type="submit"
+                      className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+                    >
+                      Weiter
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleGoBack}
+                      className="text-gray-500 hover:text-gray-700 text-sm focus:outline-none"
+                    >
+                      Zurück
+                    </button>
+                  </div>
+                </form>
+              </>
+            ) : (
+              <>
+                <h2 className="text-3xl font-extrabold text-gray-900 mb-2">
+                  Schritt 2: Gib den Code ein
+                </h2>
+                <h3 className='text-gray-600 text-xs  mb-4'>Wir haben dir einen Code in dein E-Mail Postfach geschickt, gib diesen bitte hier ein.</h3>
+                <motion.form
+                  onSubmit={handleSubmitCode}
+                  className="space-y-6"
+                  variants={variants}
+                  initial="initial"
+                  animate="animate"
+                  exit="exit"
+                  transition={{ duration: 0.3 }}
+                >
+                  <div className="flex justify-center">
+                    {code.map((digit, index) => (
+                      <div className='ml-4'>
+                        <input
+                      key={index}
+                      ref={codeInputRefs[index]}
+                      type="number"
+                      required
+                      pattern="[0-9]"
+                      maxLength={1}
+                      value={digit}
+                      onChange={(event) => handleCodeChange(index, event)}
+                      className="w-12 h-12 text-center text-gray-900 text-2xl border border-gray-300 rounded-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+                      />
+                      </div>
+                      
+                    ))}
+      </div>
+                  <div className="flex items-center justify-between">
+                    <button
+                      type="submit"
+                      className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+                    >
+                      Anmelden
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleGoBack}
+                      className="text-gray-500 hover:text-gray-700 text-sm focus:outline-none"
+                    >
+                      Zurück
+                    </button>
+                  </div>
+                </motion.form>
+              </>
+            )}
+          </motion.div>
+        </div>
       </div>
     </div>
   );
-};
-
-export default LoginPage;
+}
