@@ -39,20 +39,33 @@ export default function Home() {
   const handleSubmitEmail = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     console.log('Email:', email);
-    const bodyC = JSON.stringify({email: email})
+    const bodyContent = JSON.stringify({email: email})
     setShowCodeInput(true);
     const response = await fetch("/api/login", {
       method: "POST", // *GET, POST, PUT, DELETE, etc.
       headers: {
         "Content-Type": "application/json",
       },
-      body: bodyC, // body data type must match "Content-Type" header
+      body: bodyContent, // body data type must match "Content-Type" header
     });
   };
 
-  const handleSubmitCode = (event: React.FormEvent<HTMLFormElement>) => {
+  const handleSubmitCode = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     console.log('Code:', code);
+
+    const bodyContent = JSON.stringify({email: email, code: code.join('')})
+
+    const response = await fetch("/api/login", {
+      method: "POST", // *GET, POST, PUT, DELETE, etc.
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: bodyContent, // body data type must match "Content-Type" header
+    });
+
+    console.log(response);
+
   };
 
   const handleGoBack = () => {

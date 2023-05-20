@@ -1,6 +1,14 @@
 'use server'
 import { NextRequest, NextResponse } from "next/server";
 import MongoDBManager from "../mongomanager";
+import jwt from 'jsonwebtoken';
+
+enum AuthCodeEvaluationResult {
+  INTERNAL_ERROR = 'INTERNAL ERROR',
+  SUCCESS = 'SUCCESS',
+  CODE_EXPIRED = 'CODE EXPIRED',
+  CODE_NOT_FOUND = 'CODE NOT FOUND',
+}
 
 class RandomNumberManager {
   private dbManager: MongoDBManager;
@@ -10,6 +18,7 @@ class RandomNumberManager {
     this.sgMail.setApiKey(process.env.SENDGRID_API_KEY);
   }
 
+  
   public async saveRandomNumberWithEmail(email: string): Promise<void> {
     try {
       await this.dbManager.connect();
@@ -27,7 +36,7 @@ class RandomNumberManager {
       };
 
       await collection.insertOne(document);
-      console.log('Random number saved successfully');
+      console.log('Authcode (' + randomNumber +') generated for ' + email);
 
 
       const msg = {
@@ -48,6 +57,39 @@ class RandomNumberManager {
 
 
   }
+
+  public async evaluateAuthCode(email: string, code: string): Promise<AuthCodeEvaluationResult> {
+    try {
+      await this.dbManager.connect();
+
+      const collection = this.dbManager.getDB().collection('logintokens'); // Assuming 'logintokens' is the collection name
+
+      const document = await collection.findOne({
+        email: email,
+        number: Number(code)
+      });
+
+      console.log("Doc: ", document)
+
+      if (document) {
+        return AuthCodeEvaluationResult.SUCCESS; // Code is valid
+      } else {
+        const expiredDocument = await collection.findOne({ email, code }); // Check if the code exists but has expired
+
+        if (expiredDocument) {
+          return AuthCodeEvaluationResult.CODE_EXPIRED; // Code has expired
+        } else {
+          return AuthCodeEvaluationResult.CODE_NOT_FOUND; // Code not found
+        }
+      }
+    } catch (error) {
+      console.error('Failed to evaluate auth code:', error);
+      return AuthCodeEvaluationResult.INTERNAL_ERROR;
+    } finally {
+      await this.dbManager.disconnect();
+    }
+  }
+
 }
 
 
@@ -66,11 +108,32 @@ export async function POST(req: Request) {
     
     const mail: string = body.email;
     
-    console.log(mail)
+    const code: string = body.code;
+
+    console.log("CodeInput" + code)
+
+    if(code){
+
+      const loginStatus = await rnManager.evaluateAuthCode(mail, code);
+
+      console.log("LoginStatus: " + loginStatus)
+
+      if(loginStatus==AuthCodeEvaluationResult.SUCCESS){
+
+        const authToken = jwt.sign({ email: mail }, process.env.SESSIONKEY as string);
+
+        return new NextResponse(loginStatus.toString()).headers.set("Set-Cookie", authToken);
+
+      }
+
+      return new NextResponse(loginStatus.toString());
+      return;
+
+    }
 
     rnManager.saveRandomNumberWithEmail(mail);
     
 
-    return new NextResponse("Testing")
+    return new NextResponse("SUCCESS")
 
 }
