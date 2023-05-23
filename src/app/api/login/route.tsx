@@ -1,16 +1,20 @@
 'use server'
 import { NextRequest, NextResponse } from "next/server";
 import MongoDBManager from "../mongomanager";
-import jwt from 'jsonwebtoken';
+import jwt from "jsonwebtoken";
+
+const Crypto = require('crypto')
+const bcrypt = require('bcryptjs')
 
 enum AuthCodeEvaluationResult {
-  INTERNAL_ERROR = 'INTERNAL ERROR',
-  SUCCESS = 'SUCCESS',
-  CODE_EXPIRED = 'CODE EXPIRED',
-  CODE_NOT_FOUND = 'CODE NOT FOUND',
+    INTERNAL_ERROR = 'INTERNAL ERROR',
+    SUCCESS = 'SUCCESS',
+    CODE_EXPIRED = 'CODE EXPIRED',
+    CODE_NOT_FOUND = 'CODE NOT FOUND',
 }
 
-class RandomNumberManager {
+
+class LoginHandler {
   private dbManager: MongoDBManager;
   private sgMail = require('@sendgrid/mail');
   constructor() {
@@ -18,25 +22,23 @@ class RandomNumberManager {
     this.sgMail.setApiKey(process.env.SENDGRID_API_KEY);
   }
 
-  
-  public async saveRandomNumberWithEmail(email: string): Promise<void> {
+  public async issueAuthCode(email: string): Promise<void> {
     try {
       await this.dbManager.connect();
 
-      const randomNumber = Math.floor(100000 + Math.random() * 900000); // Generate a random number
+      const authCode = Math.floor(100000 + Math.random() * 900000); // Generate a random number
 
       const collection = this.dbManager.getDB().collection('logintokens'); // Assuming 'logintokens' is the collection name
 
       // Create the document to be inserted
       const document = {
         email,
-        number: randomNumber,
+        number: authCode,
         createdAt: new Date(),
         expireAt: new Date(new Date().getTime() + 10 * 60 * 1000), // 10 minutes expiration time
       };
 
       await collection.insertOne(document);
-      console.log('Authcode (' + randomNumber +') generated for ' + email);
 
 
       const msg = {
@@ -44,10 +46,12 @@ class RandomNumberManager {
         from: process.env.SENDGRID_EMAIL, // Use the email address or domain you verified above
         templateId: process.env.LOGINCODE_EMAILTEMPLATE,
         dynamicTemplateData: {
-          "CODE": randomNumber
+          "CODE": authCode
         }
       };
       this.sgMail.send(msg);
+
+      console.log("*********\nIssued Authcode\n E-Mail:" + email + "\n Code: " + authCode +"\n*********")
 
     } catch (error) {
       console.error('Failed to save random number:', error);
@@ -93,35 +97,41 @@ class RandomNumberManager {
 }
 
 
-const rnManager: RandomNumberManager = new RandomNumberManager();
+const loginHandler: LoginHandler = new LoginHandler();
+
 
 export async function POST(req: Request) {
 
-    const body = await req.json()
+    const emailRegex = new RegExp(process.env.NEXT_PUBLIC_EMAIL_REGEX as string)
+
+    const body = await req.json();
 
     if(!body.email){
 
-        console.log("Returning Error because no E-Mail provided")
-        return new Response("No Email Provided",{status: 204});        
+        console.log("Returning Error on Router () because no E-Mail provided")
+        return new NextResponse("No Email Provided",{status: 204});        
     
     }
     
     const mail: string = body.email;
     
+    if(!emailRegex.test(mail)){
+        return new NextResponse("Wrong E-Mail Regex", {status: 400});
+    }
+
     const code: string = body.code;
 
-    console.log("CodeInput" + code)
-
+    //Check if it is a code request (Code is part of Body)
     if(code){
 
-      const loginStatus = await rnManager.evaluateAuthCode(mail, code);
+      const loginStatus = await loginHandler.evaluateAuthCode(mail, code);
 
-      console.log("LoginStatus: " + loginStatus)
+      console.log("*********\n Result of Request to /api/login (w/ AuthCode): \n Email: " + mail +  " \n LoginStatus: " + loginStatus + "\n*********");
 
       if(loginStatus==AuthCodeEvaluationResult.SUCCESS){
 
-        const authToken = jwt.sign({ email: mail }, process.env.SESSIONKEY as string);
 
+        
         return new NextResponse(loginStatus.toString()).headers.set("Set-Cookie", authToken);
 
       }
@@ -131,7 +141,7 @@ export async function POST(req: Request) {
 
     }
 
-    rnManager.saveRandomNumberWithEmail(mail);
+    loginHandler.issueAuthCode(mail);
     
 
     return new NextResponse("SUCCESS")
